@@ -1,0 +1,33 @@
+generator client {
+  provider = "prisma-client-py"
+  output   = "./prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int            @id @default(autoincrement())
+  email          String         @unique
+  name           String?
+  password       String
+  familyMembers  FamilyMember[] @relation("OwnerToFamily")
+  linkedAsMember FamilyMember[] @relation("LinkToUser")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model FamilyMember {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  name         String
+  relation     String
+  linkedUserId Int?     @unique
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User  @relation("OwnerToFamily", fields: [userId], references: [id])
+  linkedUser User? @relation("LinkToUser", fields: [linkedUserId], references: [id])
+}

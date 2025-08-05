@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-py"
+  output   = "D:/medical/backend/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  name           String?
+  password       String
+  role      Role     @default(PATIENT)  // 
+  gender         String?
+  dateOfBirth    DateTime?
+  phoneNumber    String?
+
+    // Permissions
+  permissionsReceived    Permission[]     @relation("PermissionsReceived")
+  permissionsGiven       Permission[]     @relation("PermissionsGiven")
+
+  // Family Members
+  linkedAsMember         FamilyMember[]   @relation("LinkToUser")
+  createdFamilyMembers   FamilyMember[]   @relation("CreatedFamilyMembers")
+
+  // Family Links
+  familyLinks            FamilyLink[]
+
+  // Medical Records
+  medicalRecords         MedicalRecord[]  @relation("UserMedicalRecords")
+  createdMedicalRecords  MedicalRecord[]  @relation("AddedRecords")
+
+  // Symptoms
+  symptoms               Symptom[]        @relation("UserSymptoms")
+  createdSymptoms        Symptom[]        @relation("AddedSymptoms")
+
+  // Medical Assets
+  medicalAssets          MedicalAsset[]   @relation("UserMedicalAssets")
+
+  // Risk Factors
+  riskFactors            RiskFactor[]     @relation("UserRiskFactors")
+
+  // Environmental Factors
+  environmentalFactors   EnvironmentalFactor[] @relation("UserEnvironmentalFactors")
+}
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+model FamilyMember {
+  id                 String         @id @default(uuid())
+  fullName           String
+  gender             String?
+  dateOfBirth        DateTime?
+  dateOfDeath        DateTime?
+  ethnicity          String?
+  relationToCreator  String
+  isManualEntry      Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+
+  createdByUser      User           @relation("CreatedFamilyMembers", fields: [createdByUserId], references: [id])
+  createdByUserId    String
+
+  linkedUser         User?          @relation("LinkToUser", fields: [linkedUserId], references: [id])
+  linkedUserId       String?
+
+  familyLinks        FamilyLink[]   @relation("FamilyLinks")
+  medicalRecords     MedicalRecord[]
+  symptoms           Symptom[]
+  medicalAssets      MedicalAsset[]
+  riskFactors        RiskFactor[]
+  environmentalFactors EnvironmentalFactor[]
+}
+model FamilyLink {
+  id               String        @id @default(uuid())
+  user            User          @relation(fields: [userId], references: [id])
+  userId           String  
+  familyMemberId   String
+  relation         String
+  status           String        @default("confirmed")
+  createdAt        DateTime      @default(now())
+
+  familyMember     FamilyMember  @relation("FamilyLinks", fields: [familyMemberId], references: [id])
+}
+model MedicalRecord {
+  id               String        @id @default(uuid())
+  userId           String?       
+  familyMemberId   String?
+  recordType       String        // diagnosis, surgery, allergy, medication, lifestyle
+  conditionName    String
+  category         String
+  ageOfOnset       Int?
+  severity         String?
+  isGenetic        Boolean       @default(false)
+  treatmentNotes   String?
+  diagnosedAt      DateTime?
+  recordedBy       User            @relation("AddedRecords", fields: [recordedById], references: [id])
+  recordedById     String
+  createdAt        DateTime      @default(now())
+
+  user            User?           @relation("UserMedicalRecords", fields: [userId], references: [id])
+  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id])
+  medicalAssets    MedicalAsset[]  @relation("MedicalRecordAssets")
+}
+
+model Symptom {
+  id               String        @id @default(uuid())
+  userId           String?       
+  familyMemberId   String?
+  symptom          String
+  severity         String?
+  onsetDate        DateTime?
+  durationDays     Int?
+  associatedCondition String?
+  createdAt        DateTime      @default(now())
+
+  addedBy          User          @relation("AddedSymptoms", fields: [addedById], references: [id])
+  addedById        String
+
+  user             User?         @relation("UserSymptoms", fields: [userId], references: [id])
+  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id])
+}
+
+model MedicalAsset {
+  id                  String        @id @default(uuid())
+  userId              String
+  familyMemberId      String?
+  assetType           String        // image, pdf, text
+  fileUrl             String
+  description         String?
+  associatedRecordId  String?
+  createdAt           DateTime      @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  tags               String[]
+  category           String?     // e.g. 'X-Ray', 'Lab Report'
+  groupId            String?     // To group assets under one context (like visit ID)
+
+  user                User          @relation("UserMedicalAssets", fields: [userId], references: [id])
+  familyMember        FamilyMember? @relation(fields: [familyMemberId], references: [id])
+  medicalRecord    MedicalRecord?   @relation("MedicalRecordAssets", fields: [associatedRecordId], references: [id])
+}
+
+model Permission {
+  id               String        @id @default(uuid())
+  viewerUserId     String
+  targetUserId     String
+  accessLevel      String        // view-only, edit, full
+  expiresAt        DateTime?
+  createdAt        DateTime      @default(now())
+
+  viewer           User          @relation("PermissionsGiven", fields: [viewerUserId], references: [id])
+  target           User          @relation("PermissionsReceived", fields: [targetUserId], references: [id])
+}
+
+model RiskFactor {
+  id               String        @id @default(uuid())
+  userId           String?
+  familyMemberId   String?
+
+  bmi              Float?
+  smokingStatus    String?
+  alcoholUse       String?
+  physicalActivity String?
+  dietType         String?
+  occupationType   String?
+  stressLevel      String?
+
+  createdAt        DateTime      @default(now())
+
+  user             User?         @relation("UserRiskFactors", fields: [userId], references: [id])
+  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id])
+}
+
+model EnvironmentalFactor {
+  id               String        @id @default(uuid())
+  userId           String?
+  familyMemberId   String?
+
+  location         String?
+  pollutionLevel   String?
+  diseaseOutbreaks String?
+
+  createdAt        DateTime      @default(now())
+
+  user             User?        @relation("UserEnvironmentalFactors", fields: [userId], references: [id])
+  familyMember     FamilyMember? @relation(fields: [familyMemberId], references: [id])
+}
